@@ -1,0 +1,42 @@
+name: Filipes 2.0 Engine - Hourly Analysis
+
+on:
+  schedule:
+    # Spouští se každou hodinu (ve 0. minutu)
+    - cron: '0 * * * *'
+  workflow_dispatch: # Umožňuje ruční spuštění jedním kliknutím v GitHub rozhraní
+
+jobs:
+  analyze-and-update:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Market Analytics & AI Pipeline
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        python fetch_data.py
+
+    - name: Commit and Push results to Repo
+      run: |
+        git config --global user.name "Filipes Bot"
+        git config --global user.email "bot@filipes.internal"
+        git add data.json
+        # Commitne pouze tehdy, pokud se data reálně změnila, aby se předešlo prázdným chybám
+        git diff-index --quiet HEAD || git commit -m "Engine Update: New market data and AI insights [skip ci]"
+        git push
