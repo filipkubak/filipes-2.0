@@ -1,179 +1,112 @@
-import streamlit as st
+import streamlit as str
 import json
 import os
-import pandas as pd
+import streamlit.components.v1 as components
 
-# Nastavení stránky
-st.set_page_config(
-    page_title="Filipes 2.0 | Swing Scanner",
-    page_icon="🐕",
+# Nastavení čistého Google designu stránky
+str.set_page_config(
+    page_title="Filipes 2.0 • Vyhledávač",
+    page_icon="📈",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# --- GOOGLE MINIMALISM CUSTOM CSS ---
-st.markdown("""
-<style>
-    /* Import moderního bezpatkového písma */
-    @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap');
+# --- JAVASCRIPT PRO NOTIFIKACE V PROHLÍŽEČI ---
+def inject_notification_js(new_tickers):
+    # Převod seznamu tickerů do formátu pro JavaScript
+    tickers_json = json.dumps(new_tickers)
     
-    html, body, [data-testid="stAppViewContainer"] {
-        font-family: 'Open Sans', sans-serif;
-        background-color: #FFFFFF !important;
-        color: #202124 !important;
-    }
-    
-    /* Hlavní kontejner a záhlaví */
-    .main-title {
-        font-size: 28px;
-        font-weight: 600;
-        color: #1A73E8;
-        margin-bottom: 4px;
-    }
-    .subtitle {
-        font-size: 14px;
-        color: #5F6368;
-        margin-bottom: 24px;
-    }
-    
-    /* Minimalistické karty (Material Design) */
-    .google-card {
-        background: #FFFFFF;
-        border: 1px solid #E0E0E0;
-        border-radius: 8px;
-        padding: 16px;
-        margin-bottom: 16px;
-        box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
-    }
-    
-    /* Indikátory směrů */
-    .badge-buy {
-        background-color: #E6F4EA;
-        color: #137333;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-weight: 600;
-        font-size: 12px;
-    }
-    .badge-sell {
-        background-color: #FCE8E6;
-        color: #C5221F;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-weight: 600;
-        font-size: 12px;
-    }
-    
-    /* Skórovací kruhy / zvýraznění */
-    .score-high {
-        color: #1A73E8;
-        font-size: 24px;
-        font-weight: 700;
-    }
-    
-    /* Customizace Streamlit prvků */
-    div[data-testid="stMetricValue"] {
-        font-size: 24px !important;
-        font-weight: 600 !important;
-        color: #202124 !important;
-    }
-</style>
-""", unsafe_allow_html=True)
+    js_code = f"""
+    <script>
+    // Funkce pro vyžádání povolení k notifikacím
+    if (Notification.permission !== "granted" && Notification.permission !== "denied") {{
+        Notification.requestPermission();
+    }}
+
+    // Kontrola nových tickerů uložených v paměti prohlížeče
+    const currentTickers = {tickers_json};
+    const lastSeenRaw = localStorage.getItem("filipes_last_tickers");
+    const lastSeen = lastSeenRaw ? JSON.parse(lastSeenRaw) : [];
+
+    // Najdeme tickery, které jsou nové
+    const freshTickers = currentTickers.filter(x => !lastSeen.includes(x));
+
+    if (freshTickers.length > 0 && Notification.permission === "granted") {{
+        freshTickers.forEach(ticker => {{
+            new Notification("🎯 FILIPES 2.0: Nová příležitost", {{
+                body: "Na trhu se objevil aktivní swing signál pro " + ticker + ". Zkontrolujte tabulku!",
+                icon: "https://streamlit.io/images/brand/streamlit-mark-color.png"
+            }});
+        }});
+    }}
+
+    // Aktualizujeme paměť prohlížeče
+    localStorage.setItem("filipes_last_tickers", JSON.stringify(currentTickers));
+    </script>
+    """
+    # Skryté vložení komponenty do stránky
+    components.html(js_code, height=0, width=0)
+
 
 # --- NAČTENÍ DAT ---
 DATA_FILE = "data.json"
 
-@st.cache_data(ttl=300)
-def load_market_data():
-    if os.path.exists(DATA_FILE):
+str.markdown("""
+    <style>
+    .main .block-container { padding-top: 2rem; padding-bottom: 2rem; }
+    h1 { font-family: 'Roboto', 'Segoe UI', sans-serif; font-weight: 400; color: #1a73e8; }
+    .stAlert { border-radius: 8px; }
+    div[data-testid="stDataFrame"] { border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+    </style>
+""", unsafe-allowed_html=True)
+
+str.title("📈 Filipes 2.0")
+str.caption("Autonomní swingový skener trhu na bázi Ichimoku Cloud & S/R zón")
+
+if os.path.exists(DATA_FILE):
+    try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    else:
-        # Fallback struktura, pokud skript na pozadí ještě nestihl vygenerovat data
-        return {
-            "last_update": "Data nebyla dosud vygenerována",
-            "top_21": [],
-            "backup": []
-        }
-
-data = load_market_data()
-
-# --- HEADER APP ---
-st.markdown("<div class='main-title'>Filipes 2.0</div>", unsafe_allow_html=True)
-st.markdown(f"<div class='subtitle'>Autonomní vyhledávač swingových příležitostí • Poslední aktualizace: {data['last_update']} UTC</div>", unsafe_allow_html=True)
-
-# Menu navigace
-tab1, tab2, tab3 = st.tabs(["📊 Hlavní Dashboard (TOP 21)", "⏳ Sekce náhradníků", "📈 Historie & Statistiky"])
-
-# --- TAB 1: HLAVNÍ DASHBOARD ---
-with tab1:
-    if not data["top_21"]:
-        st.info("Momentálně nebyla nalezena žádná aktiva splňující přísná třífázová kritéria filtrů. Systém skenuje trh každou hodinu.")
-    else:
-        st.markdown("### Aktivní obchodní signály")
+            data = json.load(f)
         
-        # Výpis formou čistých, přehledných komponentů pro detailní rozklik
-        for idx, item in enumerate(data["top_21"]):
-            badge_class = "badge-buy" if item['direction'] == "BUY" else "badge-sell"
+        last_update = data.get("last_update", "Neznámo")
+        top_21 = data.get("top_21", [])
+        
+        str.info(f"🔄 Poslední aktualizace trhu: **{last_update}** (Skenování probíhá automaticky každou hodinu)")
+        
+        if top_21:
+            # Extrahujeme tickery pro notifikační skript
+            current_tickers = [x["ticker"] for x in top_21]
+            inject_notification_js(current_tickers)
             
-            with st.container():
-                # Rozvržení řádku
-                col1, col2, col3, col4, col5 = st.columns([1.5, 1, 1.5, 1.5, 4.5])
-                
-                with col1:
-                    st.markdown(f"**{idx+1}. {item['ticker']}**")
-                    st.markdown(f"<span class='{badge_class}'>{item['direction']}</span>", unsafe_allow_html=True)
-                with col2:
-                    st.markdown("**Skóre**")
-                    st.markdown(f"<span class='score-high'>{item['score']}</span>/99", unsafe_allow_html=True)
-                with col3:
-                    st.markdown("**Cena & Pravděpodobnost**")
-                    st.write(f"Cena: {item['price']}")
-                    st.write(f"Úspěšnost: {item['probability']}%")
-                with col4:
-                    st.markdown("**Risk Management**")
-                    st.markdown(f"🟢 **TP:** {item['tp']}")
-                    st.markdown(f"🔴 **SL:** {item['sl']}")
-                with col5:
-                    expander_title = f"💡 AI Zdůvodnění a technický kontext (Expirace {item['expiration']})"
-                    with st.expander(expander_title):
-                        st.write(item['reason'])
-                        st.caption(f"RSI: {item['rsi']} | Generováno modelem Gemini AI na základě Ichimoku Cloud.")
-                
-                st.markdown("---")
-
-# --- TAB 2: SEKCE NÁHRADNÍKŮ ---
-with tab2:
-    st.markdown("### Fronta náhradníků")
-    st.write("Tato aktiva splnila technické podmínky, ale nevešla se do limitu TOP 21 nebo mají nižší celkové skóre. V případě uzavření nebo expirace aktivního obchodu jsou automaticky nasazena.")
-    
-    if not data["backup"]:
-        st.write("Žádná záložní aktiva aktuálně ve frontě.")
-    else:
-        backup_df = pd.DataFrame(data["backup"])[["ticker", "direction", "price", "score", "rsi", "expiration"]]
-        # Přejmenování sloupců pro čistší vzhled
-        backup_df.columns = ["Ticker", "Směr", "Aktuální cena", "Skóre", "RSI", "Expirace"]
-        st.dataframe(backup_df, use_container_width=True, hide_index=True)
-
-# --- TAB 3: HISTORIE A STATISTIKA ---
-with tab3:
-    st.markdown("### Transparentní sledování výkonnosti")
-    
-    col_stat1, col_stat2, col_stat3 = st.columns(3)
-    with col_stat1:
-        st.metric("Celkový Win Rate", "74.2 %", delta="Target > 70%")
-    with col_stat2:
-        st.metric("Uzavřené obchody (Celkem)", "148")
-    with col_stat3:
-        st.metric("Průměrný zisk na obchod", "+4.12 %")
-        
-    st.markdown("#### Poslední uzavřené swingové pozice")
-    
-    # Mock data pro ukázku funkční historie (v plné verzi se stav generuje z archivu uzavřených JSONů)
-    mock_history = pd.DataFrame([
-        {"Aktivum": "NVDA", "Směr": "BUY", "Vstup": 875.2, "Výstup (TP/SL)": 920.0, "Výsledek": "✅ Take Profit", "Zisk/Ztráta": "+5.1%"},
-        {"Aktivum": "EURUSD=X", "Směr": "SELL", "Vstup": 1.0890, "Výstup (TP/SL)": 1.0940, "Výsledek": "❌ Stop Loss", "Zisk/Ztráta": "-0.45%"},
-        {"Aktivum": "BTC-USD", "Směr": "BUY", "Vstup": 64200, "Výstup (TP/SL)": 69100, "Výsledek": "✅ Take Profit", "Zisk/Ztráta": "+7.6%"},
-        {"Aktivum": "AAPL", "Směr": "BUY", "Vstup": 172.1, "Výstup (TP/SL)": 170.0, "Výsledek": "❌ Expirace signálu", "Zisk/Ztráta": "-1.2%"},
-    ])
-    st.dataframe(mock_history, use_container_width=True, hide_index=True)
+            # Příprava čisté tabulky pro zobrazení
+            display_data = []
+            for idx, item in enumerate(top_21, 1):
+                display_data.append({
+                    "Pořadí": f"#{idx}",
+                    "Ticker": item["ticker"],
+                    "Směr": "🟢 BUY" if item["direction"] == "BUY" else "🔴 SELL",
+                    "Vstupní zóna": f"{item['price']} USD",
+                    "Stop Loss (SL)": f"{item['sl']} USD",
+                    "Take Profit (TP)": f"{item['tp']} USD",
+                    "RSI": item["rsi"],
+                    "Expirace": item["expiration"],
+                    "Skóre": f"{item['score']}/99",
+                    "Analýza trhu (AI Kontext)": item["reason"]
+                })
+            
+            # Zobrazení interaktivní tabulky v Google stylu
+            str.dataframe(
+                display_data,
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            # Spustíme skript s prázdným polem, aby se vyčistila cache prohlížeče
+            inject_notification_js([])
+            str.warning("⏳ *Momentálně nebyla nalezena žádná aktiva splňující přísná třífázová kritéria filtrů.*")
+            str.write("Robot nenašel optimální poměr risku a zisku u žádného sledovaného titulu. Vyčkejte na další hodinnový sken.")
+            
+    except Exception as e:
+        str.error("Chyba při zpracování datového souboru.")
+else:
+    str.error("Datový soubor data.json zatím nebyl vytvořen. Spusťte nejdříve workflow na GitHubu.")
