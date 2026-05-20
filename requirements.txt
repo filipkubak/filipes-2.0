@@ -1,0 +1,7 @@
+streamlit>=1.30.0
+yfinance>=0.2.36
+pandas>=2.0.0
+numpy>=1.24.0
+google-generativeai>=0.3.0
+pandas-ta>=0.3.14b0
+requests>=2.31.0
