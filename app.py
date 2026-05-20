@@ -1,10 +1,10 @@
-import streamlit as str
+import streamlit as st
 import json
 import os
 import streamlit.components.v1 as components
 
 # Nastavení čistého Google designu stránky
-str.set_page_config(
+st.set_page_config(
     page_title="Filipes 2.0 • Vyhledávač",
     page_icon="📈",
     layout="wide",
@@ -48,20 +48,21 @@ def inject_notification_js(new_tickers):
     components.html(js_code, height=0, width=0)
 
 
-# --- NAČTENÍ DAT ---
-DATA_FILE = "data.json"
-
-str.markdown("""
+# --- STYLE INJECTION ---
+st.markdown("""
     <style>
     .main .block-container { padding-top: 2rem; padding-bottom: 2rem; }
     h1 { font-family: 'Roboto', 'Segoe UI', sans-serif; font-weight: 400; color: #1a73e8; }
     .stAlert { border-radius: 8px; }
     div[data-testid="stDataFrame"] { border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
     </style>
-""", unsafe-allowed_html=True)
+""", unsafe_allow_html=True)
 
-str.title("📈 Filipes 2.0")
-str.caption("Autonomní swingový skener trhu na bázi Ichimoku Cloud & S/R zón")
+st.title("📈 Filipes 2.0")
+st.caption("Autonomní swingový skener trhu na bázi Ichimoku Cloud & S/R zón")
+
+# --- NAČTENÍ DAT ---
+DATA_FILE = "data.json"
 
 if os.path.exists(DATA_FILE):
     try:
@@ -71,7 +72,7 @@ if os.path.exists(DATA_FILE):
         last_update = data.get("last_update", "Neznámo")
         top_21 = data.get("top_21", [])
         
-        str.info(f"🔄 Poslední aktualizace trhu: **{last_update}** (Skenování probíhá automaticky každou hodinu)")
+        st.info(f"🔄 Poslední aktualizace trhu: **{last_update}** (Skenování probíhá automaticky každou hodinu)")
         
         if top_21:
             # Extrahujeme tickery pro notifikační skript
@@ -95,7 +96,7 @@ if os.path.exists(DATA_FILE):
                 })
             
             # Zobrazení interaktivní tabulky v Google stylu
-            str.dataframe(
+            st.dataframe(
                 display_data,
                 use_container_width=True,
                 hide_index=True
@@ -103,10 +104,10 @@ if os.path.exists(DATA_FILE):
         else:
             # Spustíme skript s prázdným polem, aby se vyčistila cache prohlížeče
             inject_notification_js([])
-            str.warning("⏳ *Momentálně nebyla nalezena žádná aktiva splňující přísná třífázová kritéria filtrů.*")
-            str.write("Robot nenašel optimální poměr risku a zisku u žádného sledovaného titulu. Vyčkejte na další hodinnový sken.")
+            st.warning("⏳ *Momentálně nebyla nalezena žádná aktiva splňující přísná třífázová kritéria filtrů.*")
+            st.write("Robot nenašel optimální poměr risku a zisku u žádného sledovaného titulu. Vyčkejte na další hodinnový sken.")
             
     except Exception as e:
-        str.error("Chyba při zpracování datového souboru.")
+        st.error("Chyba při zpracování datového souboru.")
 else:
-    str.error("Datový soubor data.json zatím nebyl vytvořen. Spusťte nejdříve workflow na GitHubu.")
+    st.error("Datový soubor data.json zatím nebyl vytvořen. Spusťte nejdříve workflow na GitHubu.")
